@@ -62,6 +62,7 @@ if sys.version_info[0] >= 3:
 
 
 DEFAULT_WORDFILE = "eff-long"
+ALLOWED_SYMBOLS = '!#$%&()*+,-.:;<=>?@[]^_{|}~'
 
 
 def validate_options(parser, options):
@@ -246,6 +247,12 @@ def first_upper_case(words):
     """
     return [w.capitalize() for w in words]
 
+def sentence_case(words):
+    """
+    Set First character of first word to UPPER case.
+    """
+    return [w.capitalize() if i == 0 else w for i, w in enumerate(words)]
+
 def lower_case(words):
     """
     Set ALL words to LOWER case.
@@ -276,7 +283,8 @@ def random_case(words, testing=False):
     return [make_upper(word) for word in lower_case(words)]
 
 
-CASE_METHODS = {"alternating": alternating_case,
+CASE_METHODS = {"sentence": sentence_case,
+                "alternating": alternating_case,
                 "upper": upper_case,
                 "lower": lower_case,
                 "random": random_case,
@@ -312,8 +320,10 @@ def generate_xkcdpassword(wordlist,
                           numwords=6,
                           interactive=False,
                           acrostic=False,
-                          delimiter=" ",
-                          case="lower"):
+                          delimiter=".",
+                          case="sentence",
+                          num_digits=1,
+                          num_symbols=1):
     """
     Generate an XKCD-style password from the words in wordlist.
     """
@@ -330,7 +340,21 @@ def generate_xkcdpassword(wordlist,
         else:
             words = find_acrostic(acrostic, worddict)
 
-        return delimiter.join(set_case(words, method=case))
+        pw = delimiter.join(set_case(words, method=case))
+
+        digits = ''
+
+        if num_digits:
+            for i in range(num_digits):
+                digits += str(random.randint(0, 9))
+
+        symbols = ''
+
+        if num_symbols:
+            for i in range(num_symbols):
+                symbols += ALLOWED_SYMBOLS[random.randint(0, len(ALLOWED_SYMBOLS) - 1)]
+
+        return pw + digits + symbols
 
     # useful if driving the logic from other code
     if not interactive:
@@ -350,6 +374,7 @@ def generate_xkcdpassword(wordlist,
             print("Generated: " + passwd)
             accepted = try_input("Accept? [yN] ", accepted_validator)
             print('accepted', accepted)
+
         return passwd
         
 
@@ -389,6 +414,9 @@ def emit_passwords(wordlist, options):
                 acrostic=options.acrostic,
                 delimiter=options.delimiter,
                 case=options.case,
+                num_digits=options.num_digits,
+                num_symbols=options.num_symbols,
+
             ),
             end=options.separator)
         count -= 1
@@ -417,7 +445,7 @@ class XkcdPassArgumentParser(argparse.ArgumentParser):
                 " ita-wiki (Italian), ger-anlx (German), eff_large_de.wordlist (German), nor-nb (Norwegian)"))
         self.add_argument(
             "--min",
-            dest="min_length", type=int, default=5, metavar="MIN_LENGTH",
+            dest="min_length", type=int, default=3, metavar="MIN_LENGTH",
             help="Generate passphrases containing at least MIN_LENGTH words.")
         self.add_argument(
             "--max",
@@ -425,7 +453,7 @@ class XkcdPassArgumentParser(argparse.ArgumentParser):
             help="Generate passphrases containing at most MAX_LENGTH words.")
         exclusive_group.add_argument(
             "-n", "--numwords",
-            dest="numwords", type=int, default=6, metavar="NUM_WORDS",
+            dest="numwords", type=int, default=3, metavar="NUM_WORDS",
             help="Generate passphrases containing exactly NUM_WORDS words.")
         exclusive_group.add_argument(
             "-a", "--acrostic",
@@ -449,11 +477,11 @@ class XkcdPassArgumentParser(argparse.ArgumentParser):
             help="Report various metrics for given options.")
         self.add_argument(
             "-c", "--count",
-            dest="count", type=int, default=1, metavar="COUNT",
+            dest="count", type=int, default=5, metavar="COUNT",
             help="Generate COUNT passphrases.")
         self.add_argument(
             "-d", "--delimiter",
-            dest="delimiter", default=" ", metavar="DELIM",
+            dest="delimiter", default=".", metavar="DELIM",
             help="Separate words within a passphrase with DELIM.")
         self.add_argument(
             "-s", "--separator",
@@ -462,7 +490,7 @@ class XkcdPassArgumentParser(argparse.ArgumentParser):
         self.add_argument(
             "-C", "--case",
             dest="case", type=str, metavar="CASE",
-            choices=list(CASE_METHODS.keys()), default="lower",
+            choices=list(CASE_METHODS.keys()), default="sentence",
             help=(
                 "Choose the method for setting the case of each word "
                 "in the passphrase. "
@@ -476,6 +504,14 @@ class XkcdPassArgumentParser(argparse.ArgumentParser):
                 "Allow fallback to weak RNG if the "
                 "system does not support cryptographically secure RNG. "
                 "Only use this if you know what you are doing."))
+        self.add_argument(
+            "--num-symbols",
+            dest="num_symbols", type=int, default=1, metavar="NUM_SYMBOLS",
+            help=("Number of symbols to append"))
+        self.add_argument(
+            "--num-digits",
+            dest="num_digits", type=int, default=1, metavar="NUM_DIGITS",
+            help=("Number of digits to append"))
 
 
 def main(argv=None):
